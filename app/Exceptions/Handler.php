@@ -30,7 +30,7 @@ class Handler extends ExceptionHandler
     public function register(): void
     {
         $this->reportable(function (Throwable $e) {
-            $request = request();
+            $request = app()->bound('request') ? request() : null;
 
             if ($e instanceof TokenMismatchException
                 || ($e instanceof HttpExceptionInterface && $e->getStatusCode() === 419)) {

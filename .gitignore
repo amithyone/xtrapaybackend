@@ -78,3 +78,13 @@ app.zip
 /storage/app/quarantine-baseline.json
 /storage/framework/quarantine.lock
 /storage/app/webhook-egress-relay.secret
+
+# Local-only markdown / notes (never ship)
+_local_docs/
+
+# Local composer installer artifacts
+composer.phar
+composer-setup.php
+
+# Local Xtrapay SQLite DB
+database/xtrapay.sqlite

@@ -77,6 +77,46 @@ Route::prefix('v1')->group(function () {
     // GET /api/v1 — JSON status; webhook_base_url from WHATSAPP_APP_URL or APP_URL (see config/whatsapp.php)
     Route::get('/', V1StatusController::class)->name('api.v1.status');
 
+    /*
+    |--------------------------------------------------------------------------
+    | Xtrapay React app API (BACKEND.md contract)
+    | Base: /api/v1/xtrapay
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('xtrapay')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'status']);
+
+        Route::prefix('auth')->group(function () {
+            Route::post('register', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'register']);
+            Route::post('kyc', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'kyc']);
+            Route::post('otp/send', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'sendOtp']);
+            Route::post('otp/verify', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'verifyOtp']);
+            Route::post('login', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'login']);
+            Route::post('password/forgot', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'forgotPassword']);
+            Route::post('password/reset', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'resetPassword']);
+        });
+
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::post('auth/logout', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'logout']);
+            Route::get('auth/session', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'session']);
+            Route::post('security/pin/verify', [\App\Http\Controllers\Api\Xtrapay\AuthController::class, 'verifyPin']);
+
+            Route::get('bootstrap', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'bootstrap']);
+            Route::get('me', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'me']);
+            Route::patch('me', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'updateMe']);
+            Route::get('wallets', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'wallets']);
+            Route::get('transactions', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'transactions']);
+            Route::get('banks', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'banks']);
+            Route::post('transfers/name-enquiry', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'nameEnquiry']);
+            Route::get('beneficiaries', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'beneficiaries']);
+            Route::get('limits', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'limits']);
+            Route::put('limits', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'updateLimits']);
+            Route::post('transfers', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'createTransfer']);
+            Route::get('transfers/{id}', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'showTransfer']);
+            Route::get('network/rails', [\App\Http\Controllers\Api\Xtrapay\AppController::class, 'networkRails']);
+        });
+    });
+
     /**
      * Checkout Broadcast verify API (CheckoutNow + merchant POS).
      * Mobile: EXPO_PUBLIC_CHECKOUT_BROADCAST_API=https://check-outpay.com/api/v1/broadcast
