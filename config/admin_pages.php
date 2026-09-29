@@ -85,6 +85,12 @@ return [
             'route_patterns' => ['admin.whatsapp-wallet.wallets.*'],
             'default_roles' => ['super_admin', 'admin', 'wallet_support'],
         ],
+        'whatsapp_wallet_signup_attempts' => [
+            'label' => 'Signup attempts',
+            'group' => 'Wallet',
+            'route_patterns' => ['admin.whatsapp-wallet.signup-attempts.*'],
+            'default_roles' => ['super_admin', 'admin', 'wallet_support'],
+        ],
         'app_sessions' => [
             'label' => 'App sessions',
             'group' => 'Wallet',

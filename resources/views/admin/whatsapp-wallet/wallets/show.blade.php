@@ -67,7 +67,7 @@
                 @csrf
                 @method('PUT')
                 <p class="text-sm font-semibold text-gray-800">Link merchant business</p>
-                <p class="text-xs text-gray-500">Connect this WhatsApp wallet to a CheckoutPay business account for a separate business ledger in the app.</p>
+                <p class="text-xs text-gray-500">Connect this WhatsApp wallet to a Xtrapay business account for a separate business ledger in the app.</p>
                 <select name="linked_business_id" class="w-full rounded-lg border-gray-300 text-sm">
                     <option value="">— No linked business —</option>
                     @foreach($linkableBusinesses as $biz)
@@ -179,7 +179,7 @@
                 <div class="mt-4 p-4 rounded-lg border {{ $hasPayIn ? 'bg-green-50 border-green-200' : ($provisionStatus === 'failed' ? 'bg-red-50 border-red-200' : 'bg-indigo-50 border-indigo-200') }}">
                     <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
                         <h3 class="text-sm font-semibold text-gray-900">
-                            <i class="fas fa-id-card mr-1"></i> Tier 2 KYC &amp; {{ $isBusinessPayIn ? 'business' : 'personal' }} pay-in (Mevon)
+                            <i class="fas fa-id-card mr-1"></i> Tier 2 KYC &amp; {{ $isBusinessPayIn ? 'business' : 'personal' }} pay-in (Rubies MFB (Mevon))
                         </h3>
                         <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium {{ $provisionBadge }}">{{ $provisionLabel }}</span>
                     </div>
@@ -260,7 +260,7 @@
                         </dl>
                     @elseif(in_array($provisionStatus, ['queued', 'processing'], true))
                         <p class="text-sm text-blue-900 mb-2">
-                            Mevon identity verify + permanent account creation is in progress.
+                            Rubies MFB (Mevon) identity verify + permanent account creation is in progress.
                             Jobs run on the KYC queue — process with
                             <a href="{{ url('/cron/process-kyc-queue') }}" target="_blank" rel="noopener" class="underline font-medium">/cron/process-kyc-queue</a>
                             (also listed on the admin dashboard cron URLs).
@@ -286,13 +286,13 @@
                         </ul>
                     @else
                         <p class="text-sm text-gray-700 mb-2">
-                            KYC is on file. Queue Mevon verify and permanent {{ $isBusinessPayIn ? 'business' : 'personal' }} account creation when ready.
+                            KYC is on file. Queue Rubies MFB (Mevon) verify and permanent {{ $isBusinessPayIn ? 'business' : 'personal' }} account creation when ready.
                         </p>
                     @endif
 
                     @if(!($kycProvisionConfigured ?? false))
                         <p class="text-xs text-red-800 bg-red-50 border border-red-100 rounded px-2 py-1.5 mb-2">
-                            Mevon private account API is not configured (<code class="bg-red-100 px-1 rounded">MEVONPAY_PRIVATE_ACCOUNT_PATH</code> / credentials).
+                            Rubies MFB (Mevon) private account API is not configured (<code class="bg-red-100 px-1 rounded">MEVONPAY_PRIVATE_ACCOUNT_PATH</code> / credentials).
                         </p>
                     @endif
 
@@ -316,7 +316,7 @@
                                     <button type="submit"
                                         class="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                                         @disabled(! ($kycProvisionConfigured ?? false) || ! $kycFieldsReady)
-                                        onclick="return confirm('{{ $provisionInProgress ? 'Provision looks stuck (no account yet). Re-queue' : 'Retry' }} Mevon verify + permanent account for {{ $wallet->phone_e164 }}?')">
+                                        onclick="return confirm('{{ $provisionInProgress ? 'Provision looks stuck (no account yet). Re-queue' : 'Retry' }} Rubies MFB (Mevon) verify + permanent account for {{ $wallet->phone_e164 }}?')">
                                         <i class="fas fa-redo mr-1"></i> {{ $provisionInProgress ? 'Re-queue account creation' : 'Retry account creation' }}
                                     </button>
                                 </form>
@@ -328,7 +328,7 @@
                                         class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                         @disabled(! ($kycProvisionConfigured ?? false) || ! $kycFieldsReady || $provisionStatus === 'failed')
                                         title="{{ $kycFieldsReady ? 'Queue permanent pay-in account' : 'Complete missing KYC fields first (see list above)' }}"
-                                        onclick="return confirm('Queue Mevon verify + permanent {{ $isBusinessPayIn ? 'business' : 'personal' }} pay-in account for {{ $wallet->phone_e164 }}?')">
+                                        onclick="return confirm('Queue Rubies MFB (Mevon) verify + permanent {{ $isBusinessPayIn ? 'business' : 'personal' }} pay-in account for {{ $wallet->phone_e164 }}?')">
                                         <i class="fas fa-paper-plane mr-1"></i> Queue pay-in account
                                     </button>
                                 </form>
@@ -346,7 +346,7 @@
                             @elseif(! ($kycProvisionConfigured ?? false) || ! $kycFieldsReady)
                                 <p class="w-full text-xs text-amber-800">
                                     @if(! ($kycProvisionConfigured ?? false))
-                                        Buttons stay disabled until Mevon private-account API is configured.
+                                        Buttons stay disabled until Rubies MFB (Mevon) private-account API is configured.
                                     @elseif($isBusinessPayIn)
                                         Buttons stay disabled until missing business KYC above is saved
                                         (CAC with RC/BN prefix + registered company name, plus signatory BVN/name/DOB/email).
@@ -366,11 +366,11 @@
                     @if(auth('admin')->user()?->canMutateWalletAccounts())
                         <details class="mt-4 pt-4 border-t border-black/5">
                             <summary class="text-sm font-semibold text-gray-900 cursor-pointer select-none">
-                                <i class="fas fa-tools mr-1"></i> Ops: edit KYC / pay-in &amp; test Mevon
+                                <i class="fas fa-tools mr-1"></i> Ops: edit KYC / pay-in &amp; test Rubies MFB (Mevon)
                             </summary>
                             <p class="text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded px-2 py-1.5 mt-3 mb-3">
-                                If Mevon API calls fail with Imunify360 / access denied, whitelist this server&apos;s <strong>outbound IP</strong> with Mevon and allow HTTPS to the Mevon API host in hosting WAF.
-                                For inbound credits, ensure Mevon webhook IPs can reach <code class="bg-amber-100 px-1 rounded">/api/mevonpay/webhook</code> (Imunify360 must not block them).
+                                If Rubies MFB (Mevon) API calls fail with Imunify360 / access denied, whitelist this server&apos;s <strong>outbound IP</strong> with Rubies MFB (Mevon) and allow HTTPS to the Rubies MFB (Mevon) API host in hosting WAF.
+                                For inbound credits, ensure Rubies MFB (Mevon) webhook IPs can reach <code class="bg-amber-100 px-1 rounded">/api/mevonpay/webhook</code> (Imunify360 must not block them).
                             </p>
                             <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.kyc-pay-in', $wallet) }}" class="space-y-3 mt-2">
                                 @csrf
@@ -394,7 +394,7 @@
                                                @disabled(! $isBusinessPayIn)>
                                     </div>
                                     <div class="sm:col-span-2" data-business-kyc @class(['hidden' => ! $isBusinessPayIn])>
-                                        <label class="block text-gray-600 mb-1">Registered business name (Mevon company name)</label>
+                                        <label class="block text-gray-600 mb-1">Registered business name (Rubies MFB (Mevon) company name)</label>
                                         <input type="text" name="kyc_business_name" value="{{ old('kyc_business_name', $wallet->kyc_business_name) }}"
                                                maxlength="255" placeholder="Company name on CAC — not the RC/BN number"
                                                class="w-full rounded-lg border border-gray-300 px-3 py-2"
@@ -443,7 +443,7 @@
                                     </div>
                                 </div>
                                 <div class="pt-2 border-t border-gray-200">
-                                    <p class="text-xs font-semibold text-gray-700 mb-2">Pay-in account (manual — use when Mevon returns account number outside queue)</p>
+                                    <p class="text-xs font-semibold text-gray-700 mb-2">Pay-in account (manual — use when Rubies MFB (Mevon) returns account number outside queue)</p>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                                         <div>
                                             <label class="block text-gray-600 mb-1">Account number</label>
@@ -470,7 +470,7 @@
                                                    class="w-full rounded-lg border border-gray-300 px-3 py-2">
                                         </div>
                                         <div class="sm:col-span-2">
-                                            <label class="block text-gray-600 mb-1">Mevon reference</label>
+                                            <label class="block text-gray-600 mb-1">Rubies MFB (Mevon) reference</label>
                                             <input type="text" name="mevon_reference"
                                                    value="{{ old('mevon_reference', $wallet->mevon_reference) }}"
                                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs">
@@ -491,7 +491,7 @@
                                         class="px-3 py-1.5 rounded-lg bg-slate-600 text-white text-xs font-semibold hover:bg-slate-700"
                                         @disabled(! ($kycProvisionConfigured ?? false))
                                         onclick="var m=this.form.querySelector('input[name=_method]'); if(m){m.disabled=true;} return true;">
-                                        <i class="fas fa-vial mr-1"></i> Test Mevon identity verify (uses fields above)
+                                        <i class="fas fa-vial mr-1"></i> Test Rubies MFB (Mevon) identity verify (uses fields above)
                                     </button>
                                 </div>
                             </form>
@@ -505,7 +505,7 @@
                    class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg">All transactions</a>
                 <a href="{{ route('admin.whatsapp-wallet.transactions.p2p', ['wallet_id' => $wallet->id]) }}"
                    class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg">P2P only</a>
-                <a href="{{ route('admin.whatsapp-wallet.transactions.index', ['wallet_id' => $wallet->id, 'type' => \App\Models\WhatsappWalletTransaction::TYPE_BANK_TRANSFER_OUT]) }}"
+                <a href="{{ route('admin.whatsapp-wallet.transactions.index', ['wallet_id' => $wallet->id, 'type' => \App\Models\WalletTransaction::TYPE_BANK_TRANSFER_OUT]) }}"
                    class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg">Bank transfers</a>
             </div>
         </div>
@@ -529,10 +529,17 @@
             @if(auth('admin')->user()?->canMutateWalletAccounts())
             <div class="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
                 <h3 class="font-semibold text-gray-900 mb-3">Account controls</h3>
+                <div class="text-xs text-gray-600 mb-3 space-y-1">
+                    <div>Status: <strong>{{ str_replace('_', ' ', (string) $wallet->status) }}</strong></div>
+                    <div>Post no debit: <strong class="{{ $wallet->hasPostNoDebit() ? 'text-orange-700' : '' }}">{{ $wallet->hasPostNoDebit() ? 'Yes' : 'No' }}</strong></div>
+                    @if($wallet->isOnHold() && $wallet->on_hold_reason)
+                        <div class="text-amber-700">Hold reason: {{ $wallet->on_hold_reason }}</div>
+                    @endif
+                </div>
                 <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.status', $wallet) }}" class="space-y-3">
                     @csrf
                     @method('PUT')
-                    @if($wallet->isActive())
+                    @if($wallet->status !== \App\Models\Wallet::STATUS_SUSPENDED)
                         <input type="hidden" name="status" value="suspended">
                         <button type="submit" class="w-full bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700"
                             onclick="return confirm('Suspend this wallet? User cannot spend until reactivated.')">
@@ -544,6 +551,51 @@
                             Reactivate wallet
                         </button>
                     @endif
+                </form>
+
+                @if(! $wallet->isOnHold())
+                    <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.hold', $wallet) }}" class="mt-3 space-y-2">
+                        @csrf
+                        <input type="hidden" name="action" value="hold">
+                        <input type="text" name="reason" placeholder="Hold reason (optional)" class="w-full border-gray-300 rounded-lg text-sm">
+                        <button type="submit" class="w-full bg-amber-600 text-white px-4 py-2 rounded-lg text-sm"
+                            onclick="return confirm('Put wallet on hold? Debits blocked; credits still allowed.')">
+                            Put on hold
+                        </button>
+                    </form>
+                @else
+                    <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.hold', $wallet) }}" class="mt-3">
+                        @csrf
+                        <input type="hidden" name="action" value="release">
+                        <button type="submit" class="w-full bg-amber-700 text-white px-4 py-2 rounded-lg text-sm">
+                            Release hold
+                        </button>
+                    </form>
+                @endif
+
+                <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.post-no-debit', $wallet) }}" class="mt-3">
+                    @csrf
+                    @if($wallet->hasPostNoDebit())
+                        <input type="hidden" name="enabled" value="0">
+                        <button type="submit" class="w-full border border-orange-300 text-orange-800 px-4 py-2 rounded-lg text-sm hover:bg-orange-50">
+                            Clear post no debit
+                        </button>
+                    @else
+                        <input type="hidden" name="enabled" value="1">
+                        <button type="submit" class="w-full bg-orange-600 text-white px-4 py-2 rounded-lg text-sm"
+                            onclick="return confirm('Enable post no debit? All outbound spends will be blocked.')">
+                            Enable post no debit
+                        </button>
+                    @endif
+                </form>
+
+                <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.pin', $wallet) }}" class="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                    @csrf
+                    <h4 class="text-sm font-medium text-gray-900">Change PIN</h4>
+                    <input type="password" name="pin" inputmode="numeric" maxlength="4" pattern="\d{4}" required placeholder="New 4-digit PIN" class="w-full border-gray-300 rounded-lg text-sm">
+                    <input type="password" name="pin_confirmation" inputmode="numeric" maxlength="4" pattern="\d{4}" required placeholder="Confirm PIN" class="w-full border-gray-300 rounded-lg text-sm">
+                    <button type="submit" class="w-full bg-primary text-white px-4 py-2 rounded-lg text-sm"
+                        onclick="return confirm('Reset this wallet PIN?')">Update PIN</button>
                 </form>
 
                 <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.balance-audit-exempt', $wallet) }}" class="mt-4 pt-4 border-t border-gray-100 space-y-2">
@@ -574,7 +626,7 @@
 
                 @if($apiAccount === null)
                     <p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                        No app login account yet — user has not registered on CheckoutNow.
+                        No app login account yet — user has not registered on Xtrapay.
                     </p>
                 @else
                     <dl class="text-xs text-gray-600 space-y-1 mb-4">
@@ -677,11 +729,12 @@
                 <h3 class="font-semibold text-gray-900 mb-2">Login OTP lockout</h3>
                 <p class="text-sm text-gray-600 mb-3">
                     Clear users stuck on <span class="font-medium">“Too many unused login codes”</span> or
-                    <span class="font-medium">“Too many wrong codes”</span> in the CheckoutNow app or WhatsApp email-link flow.
+                    <span class="font-medium">“Too many wrong codes”</span> in the Xtrapay app or WhatsApp email-link flow.
                 </p>
 
                 @php
                     $otp = $otpLockout ?? [];
+                    $hold = $emailHold ?? [];
                 @endphp
                 <dl class="text-xs text-gray-600 space-y-1 mb-4">
                     <div class="flex justify-between gap-2">
@@ -713,6 +766,16 @@
                             @endif
                         </dd>
                     </div>
+                    <div class="flex justify-between gap-2 border-t border-gray-100 pt-2 mt-1">
+                        <dt>Email OTP hold (5 min dedupe)</dt>
+                        <dd class="{{ !empty($hold['held']) ? 'text-amber-800 font-medium' : 'text-green-700 font-medium' }}">
+                            @if(!empty($hold['held']))
+                                Yes — {{ $hold['seconds_remaining'] ?? 0 }}s left
+                            @else
+                                No
+                            @endif
+                        </dd>
+                    </div>
                 </dl>
 
                 @if(!empty($otp['is_stuck']))
@@ -720,8 +783,13 @@
                         This user appears locked out of OTP login. Clear below so they can request a fresh code.
                     </p>
                 @endif
+                @if(!empty($hold['held']))
+                    <p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                        Email resend is suppressed until the hold expires. Clear the hold if they say they never got the email.
+                    </p>
+                @endif
 
-                <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.otp-lockout.clear', $wallet) }}">
+                <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.otp-lockout.clear', $wallet) }}" class="mb-2">
                     @csrf
                     <button type="submit"
                         class="w-full {{ !empty($otp['is_stuck']) ? 'bg-amber-600 hover:bg-amber-700' : 'border border-gray-300 text-gray-800 hover:bg-gray-50' }} px-4 py-2 rounded-lg text-sm {{ !empty($otp['is_stuck']) ? 'text-white' : '' }}"
@@ -729,20 +797,31 @@
                         <i class="fas fa-key mr-1"></i> Clear OTP lockout
                     </button>
                 </form>
+
+                @if(filled($wallet->kyc_email))
+                    <form method="POST" action="{{ route('admin.whatsapp-wallet.wallets.email-hold.clear', $wallet) }}">
+                        @csrf
+                        <button type="submit"
+                            class="w-full {{ !empty($hold['held']) ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'border border-gray-300 text-gray-800 hover:bg-gray-50' }} px-4 py-2 rounded-lg text-sm"
+                            onclick="return confirm('Clear email OTP hold for {{ $wallet->kyc_email }}? They can receive a new code immediately.')">
+                            <i class="fas fa-envelope mr-1"></i> Clear email OTP hold
+                        </button>
+                    </form>
+                @endif
             </div>
 
             <div class="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
                 <h3 class="font-semibold text-gray-900 mb-2">App push notification</h3>
                 <p class="text-sm text-gray-600 mb-3">
-                    Send a Firebase (FCM) alert to this user&apos;s CheckoutNow app.
+                    Send a Firebase (FCM) alert to this user&apos;s Xtrapay app.
                 </p>
                 <dl class="text-xs text-gray-600 space-y-1 mb-4">
                     <div class="flex justify-between gap-2">
-                        <dt>CheckoutNow FCM project</dt>
+                        <dt>Xtrapay FCM project</dt>
                         <dd class="font-mono text-xs">{{ $pushStatus['fcm_project_id'] ?: '—' }}</dd>
                     </div>
                     <div class="flex justify-between gap-2">
-                        <dt>CheckoutNow service account</dt>
+                        <dt>Xtrapay service account</dt>
                         <dd class="font-mono text-xs {{ ($pushStatus['projects_match'] ?? false) ? 'text-green-700' : 'text-red-700' }}">
                             {{ $pushStatus['service_account_project_id'] ?? '—' }}
                             @if(!($pushStatus['projects_match'] ?? true) && ($pushStatus['fcm_project_id'] ?? '') !== '')
@@ -751,7 +830,7 @@
                         </dd>
                     </div>
                     <div class="flex justify-between gap-2">
-                        <dt>CheckoutNow push configured</dt>
+                        <dt>Xtrapay push configured</dt>
                         <dd class="{{ ($pushStatus['configured'] ?? false) ? 'text-green-700 font-medium' : 'text-red-700 font-medium' }}">
                             {{ ($pushStatus['configured'] ?? false) ? 'Yes' : 'No' }}
                         </dd>
@@ -779,7 +858,7 @@
                     @csrf
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">Title</label>
-                        <input type="text" name="title" value="{{ old('title', 'CheckoutNow') }}" maxlength="120" required
+                        <input type="text" name="title" value="{{ old('title', 'Xtrapay') }}" maxlength="120" required
                             class="w-full rounded-lg border-gray-300 text-sm">
                     </div>
                     <div>
@@ -922,7 +1001,7 @@
                             <td class="px-4 py-2 text-right font-medium">₦{{ number_format((float) $txn->amount, 2) }}</td>
                             <td class="px-4 py-2 font-mono text-xs">{{ $txn->counterparty_phone_e164 ?? $txn->counterparty_account_name ?? $txn->counterparty_account_number ?? '—' }}</td>
                             <td class="px-4 py-2">
-                                @if($txn->type === \App\Models\WhatsappWalletTransaction::TYPE_BANK_TRANSFER_OUT)
+                                @if($txn->type === \App\Models\WalletTransaction::TYPE_BANK_TRANSFER_OUT)
                                     <span class="inline-flex px-2 py-0.5 rounded text-xs {{ $bucketBadge($bucket) }}">{{ ucfirst($bucket) }}</span>
                                 @else
                                     —

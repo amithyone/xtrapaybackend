@@ -10,6 +10,12 @@ return [
      */
     'device_stepup_required_on_login' => filter_var(env('CONSUMER_DEVICE_STEPUP_REQUIRED_ON_LOGIN', true), FILTER_VALIDATE_BOOL),
 
+    /**
+     * Existing wallets with no trusted device must verify an email OTP once before the
+     * current install becomes trusted (devices stay untrusted until then).
+     */
+    'device_first_trust_email_otp' => filter_var(env('CONSUMER_DEVICE_FIRST_TRUST_EMAIL_OTP', true), FILTER_VALIDATE_BOOL),
+
     /** WebAuthn relying party ID (must match associated domains / asset links). */
     'webauthn_rp_id' => env('CONSUMER_WEBAUTHN_RP_ID', 'check-outpay.com'),
 
@@ -190,4 +196,10 @@ return [
             ['id' => 'invoices', 'label' => 'Invoices'],
         ],
     ],
+
+    /** Public base for signed wallet receive QR links (CheckoutNow consumer app). */
+    'pay_qr_base_url' => rtrim((string) env('CONSUMER_PAY_QR_BASE_URL', 'https://app.check-outnow.com'), '/'),
+
+    /** Optional HMAC secret for pay QR tokens (defaults to APP_KEY). */
+    'pay_qr_secret' => (string) env('CONSUMER_PAY_QR_SECRET', ''),
 ];

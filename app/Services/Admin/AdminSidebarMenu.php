@@ -203,6 +203,10 @@ class AdminSidebarMenu
                 $this->link('Wallet users', 'admin.whatsapp-wallet.wallets.index', 'fas fa-users text-green-600', ['admin.whatsapp-wallet.wallets.*']),
                 ['visible' => $admin->canAccessWalletOps()]
             ),
+            'whatsapp_wallet_signup_attempts' => array_merge(
+                $this->link('Signup attempts', 'admin.whatsapp-wallet.signup-attempts.index', 'fas fa-user-plus text-green-600', ['admin.whatsapp-wallet.signup-attempts.*']),
+                ['visible' => $admin->canAccessWalletOps()]
+            ),
             'app_sessions' => array_merge(
                 $this->link('App sessions', 'admin.app-sessions.index', 'fas fa-mobile-alt text-green-600', ['admin.app-sessions.*']),
                 [

@@ -39,8 +39,16 @@
                 <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                     <option value="">All</option>
                     <option value="active" @selected(request('status') === 'active')>Active</option>
+                    <option value="on_hold" @selected(request('status') === 'on_hold')>On hold</option>
                     <option value="suspended" @selected(request('status') === 'suspended')>Suspended</option>
                 </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Flags</label>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700 mt-2">
+                    <input type="checkbox" name="pnd" value="1" class="rounded border-gray-300" @checked(request()->boolean('pnd'))>
+                    Post no debit
+                </label>
             </div>
             <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Tier</label>

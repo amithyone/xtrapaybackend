@@ -4,7 +4,7 @@ namespace App\Services\Consumer;
 
 use App\Models\ConsumerDeviceStepupSession;
 use App\Models\ConsumerWalletApiAccount;
-use App\Models\WhatsappWallet;
+use App\Models\Wallet;
 use App\Services\Whatsapp\PhoneNormalizer;
 use App\Services\Whatsapp\WhatsappWalletPinResetService;
 use Illuminate\Support\Str;
@@ -20,7 +20,7 @@ class ConsumerDeviceStepupService
     ) {}
 
     /**
-     * @return array{ok: bool, message?: string, stepup_required?: bool, stepup_session?: string, other_device_label?: string|null, channels?: string[]}
+     * @return array{ok: bool, message?: string, stepup_required?: bool, stepup_session?: string, stepup_mode?: string, other_device_label?: string|null, channels?: string[], pin_reset_required?: bool, next_step?: string, email_masked?: string|null}
      */
     public function start(
         string $phoneInput,
@@ -39,7 +39,7 @@ class ConsumerDeviceStepupService
             return ['ok' => false, 'message' => 'Invalid mobile number for a supported country.'];
         }
 
-        $wallet = WhatsappWallet::query()->where('phone_e164', $e164)->first();
+        $wallet = Wallet::query()->where('phone_e164', $e164)->first();
         if (! $wallet || $wallet->needsRegistrationProfile()) {
             return ['ok' => false, 'message' => 'Complete registration to create your wallet.'];
         }
@@ -59,7 +59,7 @@ class ConsumerDeviceStepupService
         }
 
         $account = ConsumerWalletApiAccount::query()->firstOrNew(['phone_e164' => $e164]);
-        $account->whatsapp_wallet_id = $wallet->id;
+        $account->wallet_id = $wallet->id;
         $account->phone_e164 = $e164;
         $account->save();
 
@@ -73,13 +73,7 @@ class ConsumerDeviceStepupService
 
         $session = $this->createSession($account, $wallet, $deviceId, $platform, $deviceLabel);
 
-        return array_merge([
-            'ok' => true,
-            'stepup_required' => true,
-            'stepup_session' => $session->session_token,
-            'other_device_label' => $this->trust->otherDeviceLabel($account),
-            'channels' => $this->trust->stepUpChannels($wallet),
-        ], $this->stepupPush->metaForSession($session));
+        return array_merge(['ok' => true], $this->trust->stepUpPayload($session, $wallet));
     }
 
     /**
@@ -90,6 +84,10 @@ class ConsumerDeviceStepupService
         $session = $this->findActiveSession($sessionToken);
         if ($session === null) {
             return ['ok' => false, 'message' => 'Step-up session expired.'];
+        }
+
+        if ($this->trust->isFirstDeviceEmailStepUp($session->account)) {
+            return ['ok' => false, 'message' => 'BVN is not required. Enter the email OTP we sent.'];
         }
 
         $wallet = $session->wallet;
@@ -104,7 +102,7 @@ class ConsumerDeviceStepupService
     }
 
     /**
-     * @return array{ok: bool, message?: string, sent?: bool}
+     * @return array{ok: bool, message?: string, sent?: bool, channel?: string, email_masked?: string|null}
      */
     public function requestOtp(string $sessionToken, string $channel): array
     {
@@ -113,20 +111,34 @@ class ConsumerDeviceStepupService
             return ['ok' => false, 'message' => 'Step-up session expired.'];
         }
 
-        if ($session->bvn_verified_at === null) {
+        $firstDevice = $this->trust->isFirstDeviceEmailStepUp($session->account);
+        if ($firstDevice) {
+            $channel = 'email';
+        } elseif ($session->bvn_verified_at === null) {
             return ['ok' => false, 'message' => 'Verify BVN/NIN first.'];
         }
 
-        $result = $this->otp->requestOtp((string) $session->phone_e164, $channel);
+        $result = $this->otp->requestOtp(
+            (string) $session->phone_e164,
+            $channel,
+            null,
+            null,
+            forDeviceTrust: $firstDevice,
+        );
         if (! $result['ok']) {
             return ['ok' => false, 'message' => $result['message']];
         }
 
-        return ['ok' => true, 'sent' => true];
+        return [
+            'ok' => true,
+            'sent' => true,
+            'channel' => $result['channel'] ?? $channel,
+            'email_masked' => $result['email_masked'] ?? null,
+        ];
     }
 
     /**
-     * @return array{ok: bool, message?: string, stepup_token?: string}
+     * @return array{ok: bool, message?: string, stepup_token?: string, pin_reset_required?: bool, next_step?: string, token?: string, token_type?: string, phone_e164?: string, wallet_id?: int, trusted_device_id?: int, stepup_mode?: string}
      */
     public function verifyOtp(string $sessionToken, string $code): array
     {
@@ -135,7 +147,8 @@ class ConsumerDeviceStepupService
             return ['ok' => false, 'message' => 'Step-up session expired.'];
         }
 
-        if ($session->bvn_verified_at === null) {
+        $firstDevice = $this->trust->isFirstDeviceEmailStepUp($session->account);
+        if (! $firstDevice && $session->bvn_verified_at === null) {
             return ['ok' => false, 'message' => 'Verify BVN/NIN first.'];
         }
 
@@ -144,14 +157,41 @@ class ConsumerDeviceStepupService
             return ['ok' => false, 'message' => $verified['message']];
         }
 
-        $token = 'bind_'.Str::random(48);
         $session->otp_verified_at = now();
+        $session->save();
+
+        if ($firstDevice) {
+            $bound = $this->trust->bindFirstDeviceAfterEmailOtp(
+                $session,
+                $session->pending_device_id,
+                $session->pending_platform,
+                $session->pending_device_label,
+            );
+            if (! ($bound['ok'] ?? false)) {
+                return ['ok' => false, 'message' => $bound['message'] ?? 'Could not trust this device.'];
+            }
+
+            return [
+                'ok' => true,
+                'stepup_mode' => 'first_device_email',
+                'token' => $bound['token'],
+                'token_type' => 'Bearer',
+                'phone_e164' => $bound['phone_e164'] ?? null,
+                'wallet_id' => $bound['wallet_id'] ?? null,
+                'trusted_device_id' => $bound['trusted_device_id'] ?? null,
+                'pin_reset_required' => false,
+                'next_step' => 'done',
+            ];
+        }
+
+        $token = 'bind_'.Str::random(48);
         $session->stepup_token = $token;
         $session->stepup_token_expires_at = now()->addMinutes(15);
         $session->save();
 
         return [
             'ok' => true,
+            'stepup_mode' => 'device_mismatch',
             'stepup_token' => $token,
             'pin_reset_required' => true,
             'next_step' => 'set_new_pin_and_bind',
@@ -173,7 +213,7 @@ class ConsumerDeviceStepupService
 
     public function createSession(
         ConsumerWalletApiAccount $account,
-        WhatsappWallet $wallet,
+        Wallet $wallet,
         ?string $pendingDeviceId = null,
         ?string $pendingPlatform = null,
         ?string $pendingDeviceLabel = null,
@@ -183,19 +223,34 @@ class ConsumerDeviceStepupService
             ->where('expires_at', '>', now())
             ->delete();
 
-        $account->forceFill(['pin_reset_required' => true])->save();
+        $firstDevice = $this->trust->isFirstDeviceEmailStepUp($account);
+        if (! $firstDevice) {
+            $account->forceFill(['pin_reset_required' => true])->save();
+        }
 
-        return ConsumerDeviceStepupSession::query()->create([
+        $session = ConsumerDeviceStepupSession::query()->create([
             'session_token' => 'sess_'.Str::random(40),
             'consumer_wallet_api_account_id' => $account->id,
             'phone_e164' => (string) $account->phone_e164,
-            'whatsapp_wallet_id' => $wallet->id,
+            'wallet_id' => $wallet->id,
             'pending_device_id' => $this->trust->normalizeDeviceId($pendingDeviceId),
             'pending_platform' => $pendingPlatform,
             'pending_device_label' => $pendingDeviceLabel,
             'auth_verified_at' => now(),
             'expires_at' => now()->addMinutes(30),
         ]);
+
+        if ($firstDevice) {
+            $this->otp->requestOtp(
+                (string) $account->phone_e164,
+                'email',
+                null,
+                null,
+                forDeviceTrust: true,
+            );
+        }
+
+        return $session;
     }
 
     private function findActiveSession(string $sessionToken): ?ConsumerDeviceStepupSession
@@ -214,7 +269,7 @@ class ConsumerDeviceStepupService
     /**
      * @return array{ok: bool, message?: string}
      */
-    private function verifyPin(WhatsappWallet $wallet, string $pin): array
+    private function verifyPin(Wallet $wallet, string $pin): array
     {
         if ($wallet->isPinLocked()) {
             return ['ok' => false, 'message' => 'Wallet PIN is locked. Try again later or use WhatsApp OTP.'];

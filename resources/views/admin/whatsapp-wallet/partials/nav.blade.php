@@ -1,6 +1,6 @@
 @php
-    $failedCount = $failedCount ?? \App\Models\WhatsappWalletTransaction::countFailedBankPayoutsRecent();
-    $pendingCount = $pendingCount ?? \App\Models\WhatsappWalletTransaction::countPendingBankPayoutsRecent();
+    $failedCount = $failedCount ?? \App\Models\WalletTransaction::countFailedBankPayoutsRecent();
+    $pendingCount = $pendingCount ?? \App\Models\WalletTransaction::countPendingBankPayoutsRecent();
     $navClass = fn (array $patterns): string => collect($patterns)->contains(fn ($p) => request()->routeIs($p))
         ? 'bg-green-50 text-green-800 border-green-200 font-semibold'
         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50';
@@ -13,6 +13,10 @@
     <a href="{{ route('admin.whatsapp-wallet.wallets.index') }}"
        class="inline-flex items-center shrink-0 px-3 py-2 rounded-lg border text-sm {{ $navClass(['admin.whatsapp-wallet.wallets.*']) }}">
         <i class="fas fa-users mr-2 text-green-600"></i> Wallet users
+    </a>
+    <a href="{{ route('admin.whatsapp-wallet.signup-attempts.index') }}"
+       class="inline-flex items-center shrink-0 px-3 py-2 rounded-lg border text-sm {{ $navClass(['admin.whatsapp-wallet.signup-attempts.*']) }}">
+        <i class="fas fa-user-plus mr-2 text-green-600"></i> Signup attempts
     </a>
     <a href="{{ route('admin.app-sessions.index') }}"
        class="inline-flex items-center shrink-0 px-3 py-2 rounded-lg border text-sm {{ $navClass(['admin.app-sessions.*']) }}">

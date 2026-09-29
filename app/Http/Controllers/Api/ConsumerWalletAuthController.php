@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ConsumerAppSession;
 use App\Models\ConsumerWalletApiAccount;
-use App\Models\WhatsappWallet;
+use App\Models\Wallet;
 use App\Services\Consumer\ConsumerAppSessionService;
 use App\Services\Consumer\ConsumerWalletOtpService;
 use App\Services\Consumer\ConsumerWalletLockdownService;
@@ -109,7 +109,7 @@ class ConsumerWalletAuthController extends Controller
         $e164 = (string) $checked['phone_e164'];
         $region = $regions->forPhone($e164);
 
-        $wallet = WhatsappWallet::findByPhoneE164($e164);
+        $wallet = Wallet::findByPhoneE164($e164);
         if (! $wallet || $wallet->needsRegistrationProfile()) {
             return response()->json([
                 'success' => false,
@@ -125,7 +125,7 @@ class ConsumerWalletAuthController extends Controller
         if ($wallet->isLockedDown()) {
             return response()->json([
                 'success' => false,
-                'message' => WhatsappWallet::lockdownMessage(),
+                'message' => Wallet::lockdownMessage(),
                 'data' => ['locked_down' => true],
             ], 423);
         }
@@ -139,7 +139,7 @@ class ConsumerWalletAuthController extends Controller
         }
 
         $account = ConsumerWalletApiAccount::query()->firstOrNew(['phone_e164' => $e164]);
-        $account->whatsapp_wallet_id = $wallet->id;
+        $account->wallet_id = $wallet->id;
         $account->phone_e164 = $e164;
         $account->save();
 
@@ -154,11 +154,15 @@ class ConsumerWalletAuthController extends Controller
                 $ctx['platform'],
                 $ctx['device_label'],
             );
+            $payload = $trust->stepUpPayload($session, $wallet);
+            $message = ($payload['stepup_mode'] ?? '') === 'first_device_email'
+                ? 'Enter the email code to trust this device'
+                : 'Verify this device to continue';
 
             return response()->json([
                 'success' => false,
-                'message' => 'Verify this device to continue',
-                'data' => array_merge($trust->stepUpPayload($session, $wallet), [
+                'message' => $message,
+                'data' => array_merge($payload, [
                     'region' => $region,
                 ]),
             ], 403);
@@ -236,8 +240,8 @@ class ConsumerWalletAuthController extends Controller
         if ($account instanceof ConsumerWalletApiAccount) {
             $sessions = app(ConsumerAppSessionService::class);
             $ctx = $sessions->clientContextFromRequest($request);
-            $wallet = WhatsappWallet::query()->find($result['wallet_id']);
-            if ($wallet instanceof WhatsappWallet) {
+            $wallet = Wallet::query()->find($result['wallet_id']);
+            if ($wallet instanceof Wallet) {
                 app(\App\Services\Consumer\ConsumerDeviceTrustService::class)->bootstrapTrustedDeviceIfEligible(
                     $account,
                     $wallet,
@@ -275,7 +279,7 @@ class ConsumerWalletAuthController extends Controller
             'country' => 'nullable|string|size:2',
         ]);
 
-        $e164 = WhatsappWallet::resolveAuthE164(
+        $e164 = Wallet::resolveAuthE164(
             (string) $request->input('phone'),
             $request->input('country') ? (string) $request->input('country') : null,
         );
@@ -286,7 +290,7 @@ class ConsumerWalletAuthController extends Controller
             ], 422);
         }
 
-        $wallet = WhatsappWallet::findByPhoneE164($e164);
+        $wallet = Wallet::findByPhoneE164($e164);
         if (! $wallet) {
             return response()->json([
                 'success' => false,
@@ -297,7 +301,7 @@ class ConsumerWalletAuthController extends Controller
         if ($wallet->isLockedDown()) {
             return response()->json([
                 'success' => false,
-                'message' => WhatsappWallet::lockdownMessage(),
+                'message' => Wallet::lockdownMessage(),
                 'data' => ['locked_down' => true],
             ], 423);
         }
@@ -340,7 +344,7 @@ class ConsumerWalletAuthController extends Controller
         $wallet->save();
 
         $account = ConsumerWalletApiAccount::query()->firstOrNew(['phone_e164' => $e164]);
-        $account->whatsapp_wallet_id = $wallet->id;
+        $account->wallet_id = $wallet->id;
         $account->phone_e164 = $e164;
         $account->save();
 
@@ -355,11 +359,15 @@ class ConsumerWalletAuthController extends Controller
                 $ctx['platform'],
                 $ctx['device_label'],
             );
+            $payload = $trust->stepUpPayload($session, $wallet);
+            $message = ($payload['stepup_mode'] ?? '') === 'first_device_email'
+                ? 'Enter the email code to trust this device'
+                : 'Verify this device to continue';
 
             return response()->json([
                 'success' => false,
-                'message' => 'Verify this device to continue',
-                'data' => $trust->stepUpPayload($session, $wallet),
+                'message' => $message,
+                'data' => $payload,
             ], 403);
         }
 

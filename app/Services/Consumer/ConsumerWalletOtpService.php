@@ -2,11 +2,11 @@
 
 namespace App\Services\Consumer;
 
-use App\Models\WhatsappWallet;
+use App\Models\Wallet;
 use App\Services\Whatsapp\EvolutionWhatsAppClient;
 use App\Services\Whatsapp\PhoneNormalizer;
 use App\Services\Whatsapp\WhatsappEvolutionConfigResolver;
-use App\Models\WhatsappSession;
+use App\Models\WalletSession;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -36,6 +36,11 @@ class ConsumerWalletOtpService
     private function unusedSendsKey(string $e164): string
     {
         return self::CACHE_UNUSED_SENDS.hash('sha256', $e164);
+    }
+
+    private function emailSentKey(string $e164, string $code): string
+    {
+        return 'consumer_wallet_otp_email_sent:'.hash('sha256', $e164.'|'.$code);
     }
 
     public function isOtpBlocked(string $e164): bool
@@ -84,11 +89,18 @@ class ConsumerWalletOtpService
         $verifyAttempts = (int) Cache::get($this->attemptsKey($e164), 0);
         $maxVerify = max(3, (int) config('consumer_wallet.otp_max_attempts', 5));
 
-        $session = WhatsappSession::query()->where('phone_e164', $e164)->first();
+        $session = null;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('wallet_sessions')) {
+                $session = WalletSession::query()->where('phone_e164', $e164)->first();
+            }
+        } catch (\Throwable) {
+            $session = null;
+        }
         $whatsappOtpAttempts = (int) ($session?->otp_attempts ?? 0);
         $whatsappOtpMax = max(1, (int) config('whatsapp.otp.max_attempts', 5));
         $whatsappOtpLocked = $session !== null
-            && $session->state === WhatsappSession::STATE_AWAIT_OTP
+            && $session->state === WalletSession::STATE_AWAIT_OTP
             && $whatsappOtpAttempts >= $whatsappOtpMax;
 
         $blocked = $this->isOtpBlocked($e164);
@@ -125,10 +137,16 @@ class ConsumerWalletOtpService
         Cache::forget($this->otpKey($e164));
 
         $clearedSession = false;
-        $session = WhatsappSession::query()->where('phone_e164', $e164)->first();
-        if ($session !== null && (int) $session->otp_attempts > 0) {
-            $session->update(['otp_attempts' => 0]);
-            $clearedSession = true;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('wallet_sessions')) {
+                $session = WalletSession::query()->where('phone_e164', $e164)->first();
+                if ($session !== null && (int) $session->otp_attempts > 0) {
+                    $session->update(['otp_attempts' => 0]);
+                    $clearedSession = true;
+                }
+            }
+        } catch (\Throwable) {
+            $clearedSession = false;
         }
 
         return [
@@ -178,12 +196,12 @@ class ConsumerWalletOtpService
      */
     public function otpOptions(string $phoneInput, ?string $countryIso = null): array
     {
-        $e164 = WhatsappWallet::resolveAuthE164($phoneInput, $countryIso);
+        $e164 = Wallet::resolveAuthE164($phoneInput, $countryIso);
         if ($e164 === null) {
             return ['ok' => false, 'message' => 'Invalid mobile number for a supported country.'];
         }
 
-        $wallet = WhatsappWallet::findByPhoneE164($e164);
+        $wallet = Wallet::findByPhoneE164($e164);
         $email = $wallet?->resolveOtpEmail();
         $emailEligible = $wallet?->isTier2() === true && $email !== null;
         $otpBlocked = $this->isOtpBlocked($e164);
@@ -215,16 +233,16 @@ class ConsumerWalletOtpService
     /**
      * @return array{ok: bool, message: string, channel?: string, otp_blocked?: bool, email_masked?: string|null, fallback_from_whatsapp?: bool}
      */
-    public function requestOtp(string $phoneInput, string $channel = 'whatsapp', ?string $registrationEmail = null, ?string $countryIso = null): array
+    public function requestOtp(string $phoneInput, string $channel = 'whatsapp', ?string $registrationEmail = null, ?string $countryIso = null, bool $forDeviceTrust = false): array
     {
-        $e164 = WhatsappWallet::resolveAuthE164($phoneInput, $countryIso);
+        $e164 = Wallet::resolveAuthE164($phoneInput, $countryIso);
         if ($e164 === null) {
             return ['ok' => false, 'message' => 'Invalid mobile number for a supported country.'];
         }
 
-        $existing = WhatsappWallet::findByPhoneE164($e164);
+        $existing = Wallet::findByPhoneE164($e164);
         if ($existing?->isLockedDown()) {
-            return ['ok' => false, 'message' => WhatsappWallet::lockdownMessage()];
+            return ['ok' => false, 'message' => Wallet::lockdownMessage()];
         }
 
         $channel = strtolower(trim($channel));
@@ -239,15 +257,33 @@ class ConsumerWalletOtpService
         $ttl = max(60, (int) config('consumer_wallet.otp_ttl_seconds', 600));
         $len = max(4, min(8, (int) config('consumer_wallet.otp_length', 6)));
         $maxDigits = 10 ** $len - 1;
-        $code = str_pad((string) random_int(0, $maxDigits), $len, '0', STR_PAD_LEFT);
+        $pending = Cache::get($this->otpKey($e164));
+        $reuse = is_array($pending)
+            && is_string($pending['code'] ?? null)
+            && preg_match('/^\d{4,8}$/', (string) $pending['code']) === 1
+            && (int) ($pending['expires_at'] ?? 0) > time();
+        $code = $reuse
+            ? (string) $pending['code']
+            : str_pad((string) random_int(0, $maxDigits), $len, '0', STR_PAD_LEFT);
 
         Cache::put($this->otpKey($e164), [
             'code_hash' => hash('sha256', $code),
-            'expires_at' => now()->addSeconds($ttl)->timestamp,
+            'code' => $code,
+            'expires_at' => $reuse
+                ? (int) $pending['expires_at']
+                : now()->addSeconds($ttl)->timestamp,
         ], $ttl);
 
         if ($channel === 'email') {
-            return $this->deliverEmailOtp($e164, $code, $ttl, $registrationEmail, false);
+            if ($reuse && Cache::has($this->emailSentKey($e164, $code))) {
+                return [
+                    'ok' => true,
+                    'message' => 'OTP sent to your email.',
+                    'channel' => 'email',
+                ];
+            }
+
+            return $this->deliverEmailOtp($e164, $code, $ttl, $registrationEmail, false, $forDeviceTrust);
         }
 
         $instance = WhatsappEvolutionConfigResolver::walletInstanceForPhone($e164);
@@ -256,11 +292,13 @@ class ConsumerWalletOtpService
 
         $sent = false;
         if ($instance !== '') {
-            // Template: required for users with no 24h session. Meta can accept a template
-            // (HTTP 200) and still not deliver it, so also send session text. Text only
-            // arrives after they have messaged the business; auto-replies already prove that path.
+            // Template works without a 24h session. Session text is fallback only —
+            // sending both at once delivered the same OTP twice on WhatsApp.
             $templateSent = $this->whatsapp->sendAuthenticationOtp($instance, $e164, $code);
-            $textSent = $this->whatsapp->sendText($instance, $e164, $text);
+            $textSent = false;
+            if (! $templateSent) {
+                $textSent = $this->whatsapp->sendText($instance, $e164, $text);
+            }
             $sent = $templateSent || $textSent;
             Log::info('consumer_wallet.otp: whatsapp delivery', [
                 'phone_e164' => $e164,
@@ -272,8 +310,10 @@ class ConsumerWalletOtpService
         }
 
         if ($sent) {
-            Cache::forget($this->attemptsKey($e164));
-            $this->recordUnusedOtpSend($e164);
+            if (! $reuse) {
+                Cache::forget($this->attemptsKey($e164));
+                $this->recordUnusedOtpSend($e164);
+            }
 
             return ['ok' => true, 'message' => 'OTP sent to your WhatsApp.', 'channel' => 'whatsapp'];
         }
@@ -283,7 +323,7 @@ class ConsumerWalletOtpService
             'has_instance' => $instance !== '',
         ]);
 
-        return $this->deliverEmailOtp($e164, $code, $ttl, $registrationEmail, true);
+        return $this->deliverEmailOtp($e164, $code, $ttl, $registrationEmail, true, $forDeviceTrust);
     }
 
     /**
@@ -295,8 +335,9 @@ class ConsumerWalletOtpService
         int $ttl,
         ?string $registrationEmail,
         bool $fromWhatsappFallback,
+        bool $forDeviceTrust = false,
     ): array {
-        $wallet = WhatsappWallet::findByPhoneE164($e164);
+        $wallet = Wallet::findByPhoneE164($e164);
         $email = $wallet?->resolveOtpEmail();
         $needsRegistration = $wallet === null || $wallet->needsRegistrationProfile();
 
@@ -323,6 +364,15 @@ class ConsumerWalletOtpService
                 return ['ok' => false, 'message' => 'Enter a valid email address to receive your code.'];
             }
             $email = $registrationEmail;
+        } elseif ($forDeviceTrust) {
+            if ($email === null || $email === '') {
+                Cache::forget($this->otpKey($e164));
+
+                return [
+                    'ok' => false,
+                    'message' => 'No email on this wallet. Add a KYC email with support, then try again to trust this device.',
+                ];
+            }
         } elseif (! $wallet?->isTier2() || $email === null) {
             Cache::forget($this->otpKey($e164));
 
@@ -331,17 +381,25 @@ class ConsumerWalletOtpService
 
         try {
             $brand = (string) config('whatsapp.bot_brand_name', 'Checkout');
+            $subject = $forDeviceTrust
+                ? "Your {$brand} device verification code"
+                : "Your {$brand} app login code";
             Mail::send('emails.login-otp-code', [
                 'code' => $code,
                 'ttlMinutes' => max(1, (int) round($ttl / 60)),
-            ], function ($message) use ($email, $brand) {
-                $message->to($email)->subject("Your {$brand} app login code");
+                'heading' => $forDeviceTrust ? 'Your device verification code' : null,
+                'intro' => $forDeviceTrust
+                    ? 'Use this code to trust this device for your wallet. It expires in '.max(1, (int) round($ttl / 60)).' minutes.'
+                    : null,
+            ], function ($message) use ($email, $subject) {
+                $message->to($email)->subject($subject);
             });
         } catch (\Throwable $e) {
             Cache::forget($this->otpKey($e164));
             Log::warning('consumer_wallet.otp: email send failed', [
                 'error' => $e->getMessage(),
                 'fallback_from_whatsapp' => $fromWhatsappFallback,
+                'for_device_trust' => $forDeviceTrust,
             ]);
 
             return [
@@ -355,6 +413,7 @@ class ConsumerWalletOtpService
 
         Cache::forget($this->attemptsKey($e164));
         $this->recordUnusedOtpSend($e164);
+        Cache::put($this->emailSentKey($e164, $code), 1, 45);
 
         if ($fromWhatsappFallback) {
             return [
@@ -368,7 +427,9 @@ class ConsumerWalletOtpService
 
         return [
             'ok' => true,
-            'message' => $needsRegistration ? 'OTP sent to your email.' : 'OTP sent to your KYC email.',
+            'message' => $forDeviceTrust
+                ? 'Device verification code sent to '.$this->maskEmail($email).'.'
+                : ($needsRegistration ? 'OTP sent to your email.' : 'OTP sent to your KYC email.'),
             'channel' => 'email',
             'email_masked' => $this->maskEmail($email),
         ];
@@ -396,7 +457,7 @@ class ConsumerWalletOtpService
      */
     public function checkOtp(string $phoneInput, string $code, ?string $countryIso = null): array
     {
-        $e164 = WhatsappWallet::resolveAuthE164($phoneInput, $countryIso);
+        $e164 = Wallet::resolveAuthE164($phoneInput, $countryIso);
         if ($e164 === null) {
             return ['ok' => false, 'message' => 'Invalid mobile number for a supported country.'];
         }

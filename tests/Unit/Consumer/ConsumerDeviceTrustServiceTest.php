@@ -45,11 +45,28 @@ class ConsumerDeviceTrustServiceTest extends TestCase
         $this->assertNotNull($meta['transfer_lock_until']);
     }
 
-    public function test_requires_step_up_only_when_trusted_device_differs(): void
+    public function test_requires_step_up_for_existing_user_without_trusted_device(): void
     {
         config([
             'consumer_wallet.device_trust_enabled' => true,
             'consumer_wallet.device_stepup_required_on_login' => true,
+            'consumer_wallet.device_first_trust_email_otp' => true,
+        ]);
+
+        $service = $this->app->make(ConsumerDeviceTrustService::class);
+        $account = new ConsumerWalletApiAccount(['id' => 1]);
+        $account->setRelation('trustedDevices', collect());
+
+        $this->assertTrue($service->requiresStepUp($account, 'device-a'));
+        $this->assertSame('first_device_email', $service->stepUpMode($account, 'device-a'));
+    }
+
+    public function test_first_device_email_stepup_can_be_disabled(): void
+    {
+        config([
+            'consumer_wallet.device_trust_enabled' => true,
+            'consumer_wallet.device_stepup_required_on_login' => true,
+            'consumer_wallet.device_first_trust_email_otp' => false,
         ]);
 
         $service = $this->app->make(ConsumerDeviceTrustService::class);

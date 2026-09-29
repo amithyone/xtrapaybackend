@@ -389,6 +389,9 @@ Route::prefix(\App\Support\AdminPath::prefix())->name('admin.')->group(function 
             Route::post('whatsapp-wallet/wallets/{wallet}/devices/{device}/revoke', [WhatsappWalletAdminController::class, 'revokeTrustedDevice'])->name('whatsapp-wallet.wallets.devices.revoke');
             Route::post('whatsapp-wallet/wallets/{wallet}/devices/reset', [WhatsappWalletAdminController::class, 'resetDeviceRequirement'])->name('whatsapp-wallet.wallets.devices.reset');
             Route::post('whatsapp-wallet/wallets/{wallet}/step-up/clear', [WhatsappWalletAdminController::class, 'clearStepUpSessions'])->name('whatsapp-wallet.wallets.step-up.clear');
+            Route::get('whatsapp-wallet/signup-attempts', [WhatsappWalletAdminController::class, 'signupAttempts'])->name('whatsapp-wallet.signup-attempts.index');
+            Route::post('whatsapp-wallet/wallets/{wallet}/email-hold/clear', [WhatsappWalletAdminController::class, 'clearWalletEmailHold'])->name('whatsapp-wallet.wallets.email-hold.clear');
+            Route::post('whatsapp-wallet/signup-attempts/email-hold/clear', [WhatsappWalletAdminController::class, 'clearSignupEmailHold'])->name('whatsapp-wallet.signup-attempts.email-hold.clear');
 
             Route::get('business-name-registrations', [BusinessNameRegistrationAdminController::class, 'index'])->name('business-name-registrations.index');
             Route::get('business-name-registrations/{registration}', [BusinessNameRegistrationAdminController::class, 'show'])->name('business-name-registrations.show');

@@ -117,7 +117,7 @@ class ConsumerDeviceAuthController extends Controller
         if ($wallet && $wallet->isLockedDown()) {
             return response()->json([
                 'success' => false,
-                'message' => \App\Models\WhatsappWallet::lockdownMessage(),
+                'message' => \App\Models\Wallet::lockdownMessage(),
                 'data' => ['locked_down' => true],
             ], 423);
         }
@@ -254,17 +254,18 @@ class ConsumerDeviceAuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => array_merge([
+            'data' => array_filter([
                 'stepup_required' => true,
-                'stepup_session' => $result['stepup_session'],
+                'stepup_session' => $result['stepup_session'] ?? null,
+                'stepup_mode' => $result['stepup_mode'] ?? 'device_mismatch',
                 'other_device_label' => $result['other_device_label'] ?? null,
                 'channels' => $result['channels'] ?? ['whatsapp'],
-                'pin_reset_required' => true,
-                'next_step' => 'verify_kyc',
-            ], [
+                'pin_reset_required' => (bool) ($result['pin_reset_required'] ?? true),
+                'next_step' => $result['next_step'] ?? 'verify_kyc',
+                'email_masked' => $result['email_masked'] ?? null,
                 'push_approval_available' => (bool) ($result['push_approval_available'] ?? false),
                 'push_approval_expires_at' => $result['push_approval_expires_at'] ?? null,
-            ]),
+            ], fn ($v) => $v !== null),
         ]);
     }
 
@@ -369,11 +370,15 @@ class ConsumerDeviceAuthController extends Controller
         return response()->json([
             'success' => $result['ok'],
             'message' => $result['message'] ?? null,
-            'data' => $result['ok'] ? ['sent' => true] : null,
+            'data' => $result['ok'] ? array_filter([
+                'sent' => true,
+                'channel' => $result['channel'] ?? null,
+                'email_masked' => $result['email_masked'] ?? null,
+            ], fn ($v) => $v !== null) : null,
         ], $result['ok'] ? 200 : 422);
     }
 
-    public function stepupOtpVerify(Request $request, ConsumerDeviceStepupService $stepup): JsonResponse
+    public function stepupOtpVerify(Request $request, ConsumerDeviceStepupService $stepup, ConsumerAppSessionService $sessions): JsonResponse
     {
         $request->validate([
             'stepup_session' => 'required|string|max:64',
@@ -385,15 +390,63 @@ class ConsumerDeviceAuthController extends Controller
             (string) $request->input('code'),
         );
 
+        if (! ($result['ok'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? null,
+                'data' => null,
+            ], 422);
+        }
+
+        // First-device email trust: session ends with a login token immediately.
+        if (! empty($result['token'])) {
+            $appSessionId = null;
+            $phone = (string) ($result['phone_e164'] ?? '');
+            if ($phone !== '') {
+                $account = ConsumerWalletApiAccount::query()->where('phone_e164', $phone)->first();
+                if ($account instanceof ConsumerWalletApiAccount) {
+                    $appSessionId = $sessions->afterPlainTokenIssued(
+                        $account,
+                        ConsumerAppSession::LOGIN_DEVICE_BIND,
+                        $request,
+                    );
+                    $sessions->recordForAccount(
+                        $account,
+                        $request,
+                        ConsumerAppSessionEvent::TYPE_DEVICE_STEPUP,
+                        'Trusted device after email OTP (first device)',
+                        ['trusted_device_id' => $result['trusted_device_id'] ?? null],
+                    );
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Device trusted. You are signed in.',
+                'data' => array_filter([
+                    'stepup_mode' => 'first_device_email',
+                    'token' => $result['token'],
+                    'token_type' => $result['token_type'] ?? 'Bearer',
+                    'phone_e164' => $result['phone_e164'] ?? null,
+                    'wallet_id' => $result['wallet_id'] ?? null,
+                    'trusted_device_id' => $result['trusted_device_id'] ?? null,
+                    'pin_reset_required' => false,
+                    'next_step' => 'done',
+                    'app_session_id' => $appSessionId,
+                ], fn ($v) => $v !== null),
+            ]);
+        }
+
         return response()->json([
-            'success' => $result['ok'],
+            'success' => true,
             'message' => $result['message'] ?? null,
-            'data' => $result['ok'] ? [
+            'data' => [
+                'stepup_mode' => $result['stepup_mode'] ?? 'device_mismatch',
                 'stepup_token' => $result['stepup_token'],
-                'pin_reset_required' => true,
+                'pin_reset_required' => (bool) ($result['pin_reset_required'] ?? true),
                 'next_step' => $result['next_step'] ?? 'set_new_pin_and_bind',
-            ] : null,
-        ], $result['ok'] ? 200 : 422);
+            ],
+        ]);
     }
 
     /**
